@@ -2,16 +2,19 @@ import express from "express";
 const router = express.Router();
 export default router;
 
+import requireUser from "#middleware/requireUser";
 import {
   createPlaylist,
   getPlaylistById,
-  getPlaylists,
+  getPlaylistsByUserId,
 } from "#db/queries/playlists";
 import { createPlaylistTrack } from "#db/queries/playlists_tracks";
 import { getTracksByPlaylistId } from "#db/queries/tracks";
 
+router.use(requireUser);
+
 router.get("/", async (req, res) => {
-  const playlists = await getPlaylists();
+  const playlists = await getPlaylistsByUserId(req.user.id);
   res.send(playlists);
 });
 
@@ -22,7 +25,7 @@ router.post("/", async (req, res) => {
   if (!name || !description)
     return res.status(400).send("Request body requires: name, description");
 
-  const playlist = await createPlaylist(name, description);
+  const playlist = await createPlaylist(name, description, req.user.id);
   res.status(201).send(playlist);
 });
 
@@ -31,6 +34,12 @@ router.param("id", async (req, res, next, id) => {
   if (!playlist) return res.status(404).send("Playlist not found.");
 
   req.playlist = playlist;
+  next();
+});
+
+router.use("/:id", (req, res, next) => {
+  if (req.playlist.userid !== req.user.id)
+    return res.status(403).send("You do not own this playlist.");
   next();
 });
 
